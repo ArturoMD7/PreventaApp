@@ -1,0 +1,44 @@
+name: refrescos_app
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Base de datos
+  sqflite: ^2.3.0
+  path: ^1.8.3
+
+  # Utilidades
+  intl: ^0.18.1
+  shared_preferences: ^2.5.3
+  path_provider: ^2.1.1
+
+  # Impresoras y tickets
+  blue_thermal_printer: ^1.1.7
+  esc_pos_utils_plus: ^2.0.2   
+  pdf: ^3.10.4
+  printing: ^5.9.3
+
+  # Compartir archivos
+  share_plus: ^7.0.2
+
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
