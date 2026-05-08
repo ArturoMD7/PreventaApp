@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:refrescos_app/database/database_helper.dart';
-import 'package:refrescos_app/models/cliente.dart';
+import 'package:refrescos_app/services/data_service.dart';
 import 'package:refrescos_app/models/credito.dart';
-import 'package:refrescos_app/models/envase.dart';
-import 'package:refrescos_app/models/producto.dart';
+import 'package:refrescos_app/models/prestamo.dart';
 import 'package:refrescos_app/widgets/cliente_dropdown.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class CreditosEnvasesScreen extends StatefulWidget {
+class CreditosPrestamosScreen extends StatefulWidget {
   @override
-  _CreditosEnvasesScreenState createState() => _CreditosEnvasesScreenState();
+  _CreditosPrestamosScreenState createState() => _CreditosPrestamosScreenState();
 }
 
-class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with SingleTickerProviderStateMixin {
+class _CreditosPrestamosScreenState extends State<CreditosPrestamosScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<Credito> _creditos = [];
-  List<Envase> _envases = [];
+  List<Prestamo> _prestamos = [];
   List<Credito> _creditosFiltrados = [];
-  List<Envase> _envasesFiltrados = [];
+  List<Prestamo> _prestamosFiltrados = [];
   String _filtroEstadoCreditos = 'todos'; // 'todos', 'pendientes', 'pagados'
-  String _filtroEstadoEnvases = 'todos'; // 'todos', 'pendientes', 'devueltos'
+  String _filtroEstadoPrestamos = 'todos'; // 'todos', 'pendientes', 'devueltos'
+  final DataService _dbService = DataService();
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -29,15 +30,21 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
   }
 
   Future<void> _cargarDatos() async {
-    final dbHelper = DatabaseHelper();
-    final creditos = await dbHelper.getCreditos();
-    final envases = await dbHelper.getEnvases();
-    
-    setState(() {
-      _creditos = creditos;
-      _envases = envases;
-      _aplicarFiltros();
-    });
+    setState(() => _isLoading = true);
+    try {
+      final creditos = await _dbService.getCreditos();
+      final prestamos = await _dbService.getPrestamos();
+      
+      setState(() {
+        _creditos = creditos;
+        _prestamos = prestamos;
+        _aplicarFiltros();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _aplicarFiltros() {
@@ -51,12 +58,12 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
       return true; // 'todos'
     }).toList();
 
-    // Filtrar envases
-    _envasesFiltrados = _envases.where((envase) {
-      if (_filtroEstadoEnvases == 'pendientes') {
-        return envase.fechaDevolucion == null;
-      } else if (_filtroEstadoEnvases == 'devueltos') {
-        return envase.fechaDevolucion != null;
+    // Filtrar prestamos
+    _prestamosFiltrados = _prestamos.where((prestamo) {
+      if (_filtroEstadoPrestamos == 'pendientes') {
+        return prestamo.fechaDevolucion == null;
+      } else if (_filtroEstadoPrestamos == 'devueltos') {
+        return prestamo.fechaDevolucion != null;
       }
       return true; // 'todos'
     }).toList();
@@ -66,32 +73,34 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Créditos y Envases'),
+        title: const Text('Créditos y Préstamos'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: [
+          tabs: const [
             Tab(icon: Icon(Icons.credit_card), text: 'Créditos'),
-            Tab(icon: Icon(Icons.local_drink), text: 'Envases'),
+            Tab(icon: Icon(Icons.inventory_2), text: 'Préstamos'),
           ],
         ),
       ),
-      body: TabBarView(
+      body: _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : TabBarView(
         controller: _tabController,
         children: [
           _buildCreditosTab(),
-          _buildEnvasesTab(),
+          _buildPrestamosTab(),
         ],
       ),
       floatingActionButton: _tabController.index == 0
           ? FloatingActionButton(
               onPressed: () => _mostrarDialogoCredito(),
-              child: Icon(Icons.add),
               tooltip: 'Nuevo Crédito',
+              child: const Icon(Icons.add),
             )
           : FloatingActionButton(
-              onPressed: () => _mostrarDialogoEnvase(),
-              child: Icon(Icons.add),
-              tooltip: 'Nuevo Envase',
+              onPressed: () => _mostrarDialogoPrestamo(),
+              tooltip: 'Nuevo Préstamo',
+              child: const Icon(Icons.add),
             ),
     );
   }
@@ -103,7 +112,6 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
 
     return Column(
       children: [
-        // Filtros y total
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
@@ -111,7 +119,7 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _filtroEstadoCreditos,
-                  items: [
+                  items: const [
                     DropdownMenuItem(value: 'todos', child: Text('Todos')),
                     DropdownMenuItem(value: 'pendientes', child: Text('Pendientes')),
                     DropdownMenuItem(value: 'pagados', child: Text('Pagados')),
@@ -124,23 +132,23 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
                   },
                 ),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Chip(
                 label: Text(
                   'Total: \$${totalPendiente.toStringAsFixed(2)}',
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: Colors.white),
                 ),
                 backgroundColor: Colors.blue,
               ),
             ],
           ),
         ),
-        Divider(),
+        const Divider(),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _cargarDatos,
             child: _creditosFiltrados.isEmpty
-                ? Center(child: Text('No hay créditos registrados'))
+                ? const Center(child: Text('No hay créditos registrados'))
                 : ListView.builder(
                     itemCount: _creditosFiltrados.length,
                     itemBuilder: (context, index) {
@@ -158,7 +166,7 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
     final bool estaPagado = credito.saldoPendiente <= 0;
     
     return Card(
-      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       color: estaPagado ? Colors.green[50] : null,
       child: ListTile(
         leading: Icon(
@@ -182,7 +190,7 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
                   fontWeight: FontWeight.bold,
                 )),
             Text('Fecha: ${DateFormat('dd/MM/yyyy').format(credito.fecha)}'),
-            if (estaPagado) Text('PAGADO COMPLETO', style: TextStyle(color: Colors.green)),
+            if (estaPagado) const Text('PAGADO COMPLETO', style: TextStyle(color: Colors.green)),
           ],
         ),
         trailing: Row(
@@ -190,12 +198,12 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
           children: [
             if (!estaPagado)
               IconButton(
-                icon: Icon(Icons.payment, color: Colors.blue),
+                icon: const Icon(Icons.payment, color: Colors.blue),
                 onPressed: () => _mostrarDialogoAbono(credito),
                 tooltip: 'Registrar abono',
               ),
             IconButton(
-              icon: Icon(Icons.delete, color: Colors.red),
+              icon: const Icon(Icons.delete, color: Colors.red),
               onPressed: () => _confirmarEliminarCredito(credito),
               tooltip: 'Eliminar crédito',
             ),
@@ -205,33 +213,32 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
     );
   }
 
-  Widget _buildEnvasesTab() {
-    final pendientesCount = _envasesFiltrados.where((e) => e.fechaDevolucion == null).length;
+  Widget _buildPrestamosTab() {
+    final pendientesCount = _prestamosFiltrados.where((e) => e.fechaDevolucion == null).length;
 
     return Column(
       children: [
-        // Filtros y contador
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _filtroEstadoEnvases,
-                  items: [
+                  value: _filtroEstadoPrestamos,
+                  items: const [
                     DropdownMenuItem(value: 'todos', child: Text('Todos')),
                     DropdownMenuItem(value: 'pendientes', child: Text('Pendientes')),
                     DropdownMenuItem(value: 'devueltos', child: Text('Devueltos')),
                   ],
                   onChanged: (value) {
                     setState(() {
-                      _filtroEstadoEnvases = value!;
+                      _filtroEstadoPrestamos = value!;
                       _aplicarFiltros();
                     });
                   },
                 ),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Chip(
                 label: Text('$pendientesCount pendientes'),
                 backgroundColor: Colors.orange,
@@ -239,17 +246,17 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
             ],
           ),
         ),
-        Divider(),
+        const Divider(),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _cargarDatos,
-            child: _envasesFiltrados.isEmpty
-                ? Center(child: Text('No hay envases registrados'))
+            child: _prestamosFiltrados.isEmpty
+                ? const Center(child: Text('No hay préstamos registrados'))
                 : ListView.builder(
-                    itemCount: _envasesFiltrados.length,
+                    itemCount: _prestamosFiltrados.length,
                     itemBuilder: (context, index) {
-                      final envase = _envasesFiltrados[index];
-                      return _buildEnvaseCard(envase);
+                      final prestamo = _prestamosFiltrados[index];
+                      return _buildPrestamoCard(prestamo);
                     },
                   ),
           ),
@@ -258,11 +265,11 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
     );
   }
 
-  Widget _buildEnvaseCard(Envase envase) {
-    final bool estaDevuelto = envase.fechaDevolucion != null;
+  Widget _buildPrestamoCard(Prestamo prestamo) {
+    final bool estaDevuelto = prestamo.fechaDevolucion != null;
 
     return Card(
-      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       color: estaDevuelto ? Colors.green[50] : null,
       child: ListTile(
         leading: Icon(
@@ -270,7 +277,7 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
           color: estaDevuelto ? Colors.green : Colors.orange,
         ),
         title: Text(
-          envase.clienteNombre ?? 'Cliente desconocido',
+          prestamo.clienteNombre ?? 'Cliente desconocido',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             decoration: estaDevuelto ? TextDecoration.lineThrough : null,
@@ -279,24 +286,24 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Producto: ${envase.productoNombre}'),
-            Text('Cantidad: ${envase.cantidad}'),
-            Text('Préstamo: ${DateFormat('dd/MM/yyyy').format(envase.fechaPrestamo)}'),
+            Text('Descripción: ${prestamo.descripcion}'),
+            Text('Cantidad: ${prestamo.cantidad}'),
+            Text('Préstamo: ${DateFormat('dd/MM/yyyy').format(prestamo.fechaPrestamo)}'),
             if (estaDevuelto)
-              Text('Devolución: ${DateFormat('dd/MM/yyyy').format(envase.fechaDevolucion!)}'),
+              Text('Devolución: ${DateFormat('dd/MM/yyyy').format(prestamo.fechaDevolucion!)}'),
             if (!estaDevuelto)
-              Text('PENDIENTE', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+              const Text('PENDIENTE', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
           ],
         ),
         trailing: !estaDevuelto
             ? IconButton(
-                icon: Icon(Icons.check, color: Colors.green),
-                onPressed: () => _registrarDevolucion(envase.id!),
+                icon: const Icon(Icons.check, color: Colors.green),
+                onPressed: () => _registrarDevolucion(prestamo.id!),
                 tooltip: 'Marcar como devuelto',
               )
             : IconButton(
-                icon: Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _confirmarEliminarEnvase(envase),
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _confirmarEliminarPrestamo(prestamo),
                 tooltip: 'Eliminar registro',
               ),
       ),
@@ -310,10 +317,10 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
     ).then((_) => _cargarDatos());
   }
 
-  void _mostrarDialogoEnvase() {
+  void _mostrarDialogoPrestamo() {
     showDialog(
       context: context,
-      builder: (context) => EnvaseDialog(),
+      builder: (context) => PrestamoDialog(),
     ).then((_) => _cargarDatos());
   }
 
@@ -323,18 +330,18 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Registrar Abono'),
+        title: const Text('Registrar Abono'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Cliente: ${credito.clienteNombre}'),
             Text('Saldo actual: \$${credito.saldoPendiente.toStringAsFixed(2)}'),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _abonoController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Monto del abono',
                 prefixText: '\$ ',
               ),
@@ -357,95 +364,99 @@ class _CreditosEnvasesScreenState extends State<CreditosEnvasesScreen> with Sing
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (_abonoController.text.isNotEmpty) {
                 final abono = double.parse(_abonoController.text);
                 final nuevoSaldo = credito.saldoPendiente - abono;
-                final dbHelper = DatabaseHelper();
-                await dbHelper.updateSaldoCredito(credito.id!, nuevoSaldo);
-                
-                Navigator.of(context).pop();
-                _cargarDatos();
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Abono de \$${abono.toStringAsFixed(2)} registrado')),
-                );
+                try {
+                  await _dbService.updateSaldoCredito(credito.id!, nuevoSaldo);
+                  Navigator.of(context).pop();
+                  _cargarDatos();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Abono de \$${abono.toStringAsFixed(2)} registrado')),
+                  );
+                } catch(e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
               }
             },
-            child: Text('Registrar Abono'),
+            child: const Text('Registrar Abono'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _registrarDevolucion(int envaseId) async {
-    final dbHelper = DatabaseHelper();
-    await dbHelper.updateDevolucionEnvase(envaseId, DateTime.now());
-    _cargarDatos();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Envase marcado como devuelto')),
-    );
+  Future<void> _registrarDevolucion(String prestamoId) async {
+    try {
+      await _dbService.updateDevolucionPrestamo(prestamoId, DateTime.now());
+      _cargarDatos();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Préstamo marcado como devuelto')),
+      );
+    } catch(e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   void _confirmarEliminarCredito(Credito credito) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Eliminar Crédito'),
-        content: Text('¿Estás seguro de eliminar este crédito? Esta acción no se puede deshacer.'),
+        title: const Text('Eliminar Crédito'),
+        content: const Text('¿Estás seguro de eliminar este crédito? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () async {
-              final dbHelper = DatabaseHelper();
-              // Necesitarías agregar un método deleteCredito en DatabaseHelper
-              await dbHelper.deleteCredito(credito.id!);
-              Navigator.of(context).pop();
-              _cargarDatos();
+              try {
+                await _dbService.deleteCredito(credito.id!);
+                Navigator.of(context).pop();
+                _cargarDatos();
+              } catch(e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
             },
-            child: Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
   }
 
-  void _confirmarEliminarEnvase(Envase envase) {
+  void _confirmarEliminarPrestamo(Prestamo prestamo) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Eliminar Registro de Envase'),
-        content: Text('¿Estás seguro de eliminar este registro de envase?'),
+        title: const Text('Eliminar Registro de Préstamo'),
+        content: const Text('¿Estás seguro de eliminar este registro de préstamo?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () async {
-              final dbHelper = DatabaseHelper();
-              // Necesitarías agregar un método deleteEnvase en DatabaseHelper
-              await dbHelper.deleteEnvase(envase.id!);
-              Navigator.of(context).pop();
-              _cargarDatos();
+              try {
+                await _dbService.deletePrestamo(prestamo.id!);
+                Navigator.of(context).pop();
+                _cargarDatos();
+              } catch(e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
             },
-            child: Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
   }
-
-
-
 }
 
 class CreditoDialog extends StatefulWidget {
@@ -455,27 +466,33 @@ class CreditoDialog extends StatefulWidget {
 
 class _CreditoDialogState extends State<CreditoDialog> {
   final _formKey = GlobalKey<FormState>();
-  int? _selectedClienteId;
+  String? _selectedClienteId;
   final _montoController = TextEditingController();
+  final DataService _dbService = DataService();
 
   Future<void> _guardarCredito() async {
     if (_formKey.currentState!.validate() && _selectedClienteId != null) {
-      final dbHelper = DatabaseHelper();
+      final currentUserId = Supabase.instance.client.auth.currentUser!.id;
       final credito = Credito(
+        userId: currentUserId,
         clienteId: _selectedClienteId!,
         monto: double.parse(_montoController.text),
         saldoPendiente: double.parse(_montoController.text),
         fecha: DateTime.now(),
       );
-      await dbHelper.insertCredito(credito);
-      Navigator.of(context).pop();
+      try {
+        await _dbService.insertCredito(credito);
+        Navigator.of(context).pop();
+      } catch(e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Nuevo Crédito'),
+      title: const Text('Nuevo Crédito'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -490,7 +507,7 @@ class _CreditoDialogState extends State<CreditoDialog> {
             ),
             TextFormField(
               controller: _montoController,
-              decoration: InputDecoration(labelText: 'Monto'),
+              decoration: const InputDecoration(labelText: 'Monto'),
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty || double.tryParse(value) == null) {
@@ -505,63 +522,53 @@ class _CreditoDialogState extends State<CreditoDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancelar'),
+          child: const Text('Cancelar'),
         ),
         TextButton(
           onPressed: _guardarCredito,
-          child: Text('Guardar'),
+          child: const Text('Guardar'),
         ),
       ],
     );
   }
 }
 
-class EnvaseDialog extends StatefulWidget {
+class PrestamoDialog extends StatefulWidget {
   @override
-  _EnvaseDialogState createState() => _EnvaseDialogState();
+  _PrestamoDialogState createState() => _PrestamoDialogState();
 }
 
-class _EnvaseDialogState extends State<EnvaseDialog> {
+class _PrestamoDialogState extends State<PrestamoDialog> {
   final _formKey = GlobalKey<FormState>();
-  int? _selectedClienteId;
-  int? _selectedProductoId;
+  String? _selectedClienteId;
+  final _descripcionController = TextEditingController();
   final _cantidadController = TextEditingController();
-  List<Producto> _productos = [];
+  final DataService _dbService = DataService();
 
-  @override
-  void initState() {
-    super.initState();
-    _cargarProductos();
-  }
-
-  Future<void> _cargarProductos() async {
-    final dbHelper = DatabaseHelper();
-    final productos = await dbHelper.getProductos();
-    setState(() {
-      _productos = productos;
-    });
-  }
-
-  Future<void> _guardarEnvase() async {
+  Future<void> _guardarPrestamo() async {
     if (_formKey.currentState!.validate() && 
-        _selectedClienteId != null && 
-        _selectedProductoId != null) {
-      final dbHelper = DatabaseHelper();
-      final envase = Envase(
+        _selectedClienteId != null) {
+      final currentUserId = Supabase.instance.client.auth.currentUser!.id;
+      final prestamo = Prestamo(
+        userId: currentUserId,
         clienteId: _selectedClienteId!,
-        productoId: _selectedProductoId!,
+        descripcion: _descripcionController.text,
         cantidad: int.parse(_cantidadController.text),
         fechaPrestamo: DateTime.now(),
       );
-      await dbHelper.insertEnvase(envase);
-      Navigator.of(context).pop();
+      try {
+        await _dbService.insertPrestamo(prestamo);
+        Navigator.of(context).pop();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Nuevo Envase Prestado'),
+      title: const Text('Nuevo Préstamo'),
       content: Form(
         key: _formKey,
         child: Column(
@@ -574,26 +581,19 @@ class _EnvaseDialogState extends State<EnvaseDialog> {
                 });
               },
             ),
-            DropdownButtonFormField<int>(
-              value: _selectedProductoId,
-              decoration: InputDecoration(labelText: 'Producto'),
-              items: _productos.map((Producto producto) {
-                return DropdownMenuItem<int>(
-                  value: producto.id,
-                  child: Text(producto.nombre),
-                );
-              }).toList(),
-              onChanged: (value) => setState(() {
-                _selectedProductoId = value;
-              }),
+            TextFormField(
+              controller: _descripcionController,
+              decoration: const InputDecoration(labelText: 'Descripción (Ej. 2 Envases Coca-Cola)'),
               validator: (value) {
-                if (value == null) return 'Selecciona un producto';
+                if (value == null || value.isEmpty) {
+                  return 'Ingresa una descripción';
+                }
                 return null;
               },
             ),
             TextFormField(
               controller: _cantidadController,
-              decoration: InputDecoration(labelText: 'Cantidad'),
+              decoration: const InputDecoration(labelText: 'Cantidad'),
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty || int.tryParse(value) == null) {
@@ -611,16 +611,13 @@ class _EnvaseDialogState extends State<EnvaseDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancelar'),
+          child: const Text('Cancelar'),
         ),
         TextButton(
-          onPressed: _guardarEnvase,
-          child: Text('Guardar'),
+          onPressed: _guardarPrestamo,
+          child: const Text('Guardar'),
         ),
       ],
     );
   }
 }
-
-
-  

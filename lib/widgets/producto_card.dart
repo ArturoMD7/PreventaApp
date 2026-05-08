@@ -16,13 +16,13 @@ class ProductoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
         title: Text(producto.nombre),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Marca: ${producto.marcaNombre ?? 'Sin marca'}'),
+            Text('Categoría: ${producto.categoriaNombre ?? 'Sin categoría'}'),
             Text('Precio: \$${producto.precio.toStringAsFixed(2)}'),
             Text('Costo: \$${producto.costo.toStringAsFixed(2)}'),
             Text('Stock: ${producto.stock}'),
@@ -32,11 +32,13 @@ class ProductoCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: Icon(Icons.edit),
+              icon: const Icon(Icons.edit),
+              color: Colors.blue,
               onPressed: onEdit,
             ),
             IconButton(
-              icon: Icon(Icons.delete),
+              icon: const Icon(Icons.delete),
+              color: Colors.red,
               onPressed: onDelete,
             ),
           ],

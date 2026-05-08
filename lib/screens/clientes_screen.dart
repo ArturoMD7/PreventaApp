@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:refrescos_app/models/cliente.dart';
-import 'package:refrescos_app/database/database_helper.dart';
+import 'package:refrescos_app/services/data_service.dart';
 import 'package:refrescos_app/widgets/cliente_dialog.dart';
 
 class ClientesScreen extends StatefulWidget {
@@ -11,7 +11,7 @@ class ClientesScreen extends StatefulWidget {
 class _ClientesScreenState extends State<ClientesScreen> {
   List<Cliente> _clientes = [];
   List<Cliente> _clientesFiltrados = [];
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final DataService _dbService = DataService();
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
 
@@ -30,12 +30,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   Future<void> _cargarClientes() async {
     setState(() => _isLoading = true);
-    final clientes = await _dbHelper.getClientes();
-    setState(() {
-      _clientes = clientes;
-      _clientesFiltrados = clientes;
-      _isLoading = false;
-    });
+    try {
+      final clientes = await _dbService.getClientes();
+      setState(() {
+        _clientes = clientes;
+        _clientesFiltrados = clientes;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar clientes: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _filtrarClientes() {
@@ -61,26 +68,26 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
 
     if (resultado != null) {
-      if (cliente == null) {
-        // Nuevo cliente: insertar en BD
-        await _dbHelper.insertCliente(resultado);
+      setState(() => _isLoading = true);
+      try {
+        if (cliente == null) {
+          await _dbService.insertCliente(resultado);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cliente agregado correctamente'), backgroundColor: Colors.green),
+          );
+        } else {
+          await _dbService.updateCliente(resultado);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Cliente actualizado correctamente'), backgroundColor: Colors.blue),
+          );
+        }
+        await _cargarClientes();
+      } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cliente agregado correctamente'),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text('Error al guardar cliente: $e'), backgroundColor: Colors.red),
         );
-      } else {
-        // Cliente existente: actualizar en BD
-        await _dbHelper.updateCliente(resultado);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cliente actualizado correctamente'),
-            backgroundColor: Colors.blue,
-          ),
-        );
+        setState(() => _isLoading = false);
       }
-      _cargarClientes(); // refrescar lista después de guardar
     }
   }
 
@@ -89,36 +96,41 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Eliminar cliente'),
+        title: const Text('Eliminar cliente'),
         content: Text('¿Estás seguro de que deseas eliminar a ${cliente.nombre}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Eliminar', style: TextStyle(color: Colors.red)),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
     if (confirmado == true) {
-      await _dbHelper.deleteCliente(cliente.id!);
-      _cargarClientes();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cliente eliminado correctamente'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() => _isLoading = true);
+      try {
+        await _dbService.deleteCliente(cliente.id!);
+        await _cargarClientes();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cliente eliminado correctamente'), backgroundColor: Colors.red),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al eliminar cliente: $e'), backgroundColor: Colors.red),
+        );
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Widget _buildClientesList() {
     if (_isLoading) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -136,16 +148,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.people_outline, size: 64, color: Colors.grey[300]),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               _searchController.text.isEmpty
                   ? 'No hay clientes registrados'
                   : 'No se encontraron clientes',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             if (_searchController.text.isEmpty)
-              Text(
+              const Text(
                 'Presiona el botón + para agregar el primer cliente',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
@@ -160,19 +172,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
       itemBuilder: (context, index) {
         final cliente = _clientesFiltrados[index];
         return Card(
-          margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           elevation: 2,
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: Colors.blue[700],
               child: Text(
                 cliente.nombre.isNotEmpty ? cliente.nombre[0].toUpperCase() : 'C',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
             title: Text(
               cliente.nombre,
-              style: TextStyle(fontWeight: FontWeight.w500),
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,16 +192,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 if (cliente.telefono != null && cliente.telefono!.isNotEmpty)
                   Row(
                     children: [
-                      Icon(Icons.phone, size: 14, color: Colors.grey),
-                      SizedBox(width: 4),
+                      const Icon(Icons.phone, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
                       Text(cliente.telefono!),
                     ],
                   ),
                 if (cliente.direccion != null && cliente.direccion!.isNotEmpty)
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 14, color: Colors.grey),
-                      SizedBox(width: 4),
+                      const Icon(Icons.location_on, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           cliente.direccion!,
@@ -204,13 +216,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: Icon(Icons.edit, size: 20),
+                  icon: const Icon(Icons.edit, size: 20),
                   color: Colors.blue,
                   onPressed: () => _mostrarDialogo(cliente: cliente),
                   tooltip: 'Editar cliente',
                 ),
                 IconButton(
-                  icon: Icon(Icons.delete, size: 20),
+                  icon: const Icon(Icons.delete, size: 20),
                   color: Colors.red,
                   onPressed: () => _eliminarCliente(cliente),
                   tooltip: 'Eliminar cliente',
@@ -228,12 +240,12 @@ class _ClientesScreenState extends State<ClientesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Clientes"),
+        title: const Text("Clientes"),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: _cargarClientes,
             tooltip: 'Actualizar lista',
           ),
@@ -248,7 +260,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Buscar clientes...',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -256,7 +268,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 fillColor: Colors.grey[100],
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear),
+                        icon: const Icon(Icons.clear),
                         onPressed: () => _searchController.clear(),
                       )
                     : null,
@@ -279,7 +291,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 ),
                 if (_searchController.text.isNotEmpty)
                   Chip(
-                    label: Text('Búsqueda activa'),
+                    label: const Text('Búsqueda activa'),
                     backgroundColor: Colors.blue[100],
                   ),
               ],
@@ -297,7 +309,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _mostrarDialogo(),
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         tooltip: 'Agregar nuevo cliente',

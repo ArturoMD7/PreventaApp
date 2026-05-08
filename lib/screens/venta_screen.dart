@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:refrescos_app/database/database_helper.dart';
+import 'package:refrescos_app/services/data_service.dart';
 import 'package:refrescos_app/models/detalle_venta.dart';
 import 'package:refrescos_app/models/producto.dart';
 import 'package:refrescos_app/models/venta.dart';
+import 'package:refrescos_app/models/negocio.dart';
 import 'package:refrescos_app/widgets/cliente_dropdown.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 
 class VentaScreen extends StatefulWidget {
@@ -16,10 +18,12 @@ class VentaScreen extends StatefulWidget {
 
 class _VentaScreenState extends State<VentaScreen> {
   BlueThermalPrinter printer = BlueThermalPrinter.instance;
-  int? _selectedClienteId;
+  String? _selectedClienteId;
   String? _nombreCliente;
   final List<Map<String, dynamic>> _productosSeleccionados = [];
   double _total = 0.0;
+  final DataService _dbService = DataService();
+  bool _isProcessing = false;
 
   void _agregarProducto(Producto producto, int cantidad) {
     final subtotal = producto.precio * cantidad;
@@ -69,43 +73,49 @@ class _VentaScreenState extends State<VentaScreen> {
   Future<void> _finalizarVenta() async {
     if (_selectedClienteId == null || _productosSeleccionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Selecciona un cliente y agrega productos')),
+        const SnackBar(content: Text('Selecciona un cliente y agrega productos')),
       );
       return;
     }
 
-    final venta = Venta(
-      clienteId: _selectedClienteId,
-      clienteNombre: _nombreCliente ?? 'Cliente no especificado',
-      fecha: DateTime.now(),
-      total: _total,
-      estado: 'pendiente',
-    );
-
-    final dbHelper = DatabaseHelper();
+    setState(() => _isProcessing = true);
 
     try {
-      final ventaId = await dbHelper.insertVenta(venta);
+      final currentUserId = Supabase.instance.client.auth.currentUser!.id;
+      final venta = Venta(
+        userId: currentUserId,
+        clienteId: _selectedClienteId,
+        clienteNombre: _nombreCliente ?? 'Cliente no especificado',
+        fecha: DateTime.now(),
+        total: _total,
+        estado: 'pendiente',
+      );
 
+      List<DetalleVenta> detalles = [];
       for (var item in _productosSeleccionados) {
-        final detalle = DetalleVenta(
-          ventaId: ventaId,
+        detalles.add(DetalleVenta(
+          ventaId: '', // Lo asignará el servicio
           productoId: item['producto'].id!,
           cantidad: item['cantidad'],
           precioUnitario: item['producto'].precio,
           subtotal: item['subtotal'],
-        );
-        await dbHelper.insertDetalleVenta(detalle);
+        ));
+      }
 
-        // Actualizar stock del producto
-        final nuevoStock = item['producto'].stock - item['cantidad'];
-        await dbHelper.updateProducto(
+      await _dbService.insertVenta(venta, detalles);
+
+      // Actualizar stock de productos
+      for (var item in _productosSeleccionados) {
+        final producto = item['producto'] as Producto;
+        final nuevoStock = producto.stock - (item['cantidad'] as int);
+        await _dbService.updateProducto(
           Producto(
-            id: item['producto'].id,
-            nombre: item['producto'].nombre,
-            marcaId: item['producto'].marcaId,
-            costo: item['producto'].costo,
-            precio: item['producto'].precio,
+            id: producto.id,
+            userId: producto.userId,
+            nombre: producto.nombre,
+            categoriaId: producto.categoriaId,
+            costo: producto.costo,
+            precio: producto.precio,
             stock: nuevoStock,
           ),
         );
@@ -113,18 +123,19 @@ class _VentaScreenState extends State<VentaScreen> {
 
       await _imprimirTicket(venta, _productosSeleccionados);
 
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Venta Registrada'),
+          title: const Text('Venta Registrada'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('La venta se ha registrado exitosamente.'),
-              SizedBox(height: 8),
+              const Text('La venta se ha registrado exitosamente.'),
+              const SizedBox(height: 8),
               Text(
                 'Total: \$${_total.toStringAsFixed(2)}',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -134,40 +145,18 @@ class _VentaScreenState extends State<VentaScreen> {
                 Navigator.of(context).pop();
                 _limpiarFormulario();
               },
-              child: Text('Aceptar'),
-            ),
-          ],
-        ),
-      );
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Venta Registrada'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('La venta se ha registrado exitosamente.'),
-              SizedBox(height: 8),
-              Text('Total: \$${_total.toStringAsFixed(2)}', 
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _limpiarFormulario();
-              },
-              child: Text('Aceptar'),
+              child: const Text('Aceptar'),
             ),
           ],
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error al registrar la venta: $e')),
       );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -200,19 +189,19 @@ class _VentaScreenState extends State<VentaScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Modificar cantidad'),
+        title: const Text('Modificar cantidad'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             labelText: 'Cantidad de ${producto.nombre}',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           TextButton(
             onPressed: () {
@@ -220,7 +209,7 @@ class _VentaScreenState extends State<VentaScreen> {
               _modificarCantidad(index, nuevaCantidad);
               Navigator.of(context).pop();
             },
-            child: Text('Guardar'),
+            child: const Text('Guardar'),
           ),
         ],
       ),
@@ -228,71 +217,79 @@ class _VentaScreenState extends State<VentaScreen> {
   }
 
   Future<void> _imprimirTicket(Venta venta, List<Map<String, dynamic>> productos) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final address = prefs.getString("printer_address");
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final address = prefs.getString("printer_address");
 
-    if (address == null) {
+      if (address == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No hay impresora guardada")),
+        );
+        return;
+      }
+
+      if (!(await printer.isConnected)!) {
+        final devices = await printer.getBondedDevices();
+        final device = devices.firstWhere(
+          (d) => d.address == address,
+          orElse: () => throw "Dispositivo no encontrado",
+        );
+        await printer.connect(device);
+      }
+
+      String fechaFormateada = DateFormat('dd/MM/yyyy HH:mm').format(venta.fecha);
+
+      // Obtener datos del negocio para personalizar el ticket
+      final negocio = await _dbService.getNegocio();
+
+      // Encabezado
+      printer.printCustom(negocio?.ticketHeader ?? "TICKET DE VENTA", 2, 1);
+      printer.printCustom(negocio?.nombreNegocio ?? "MI NEGOCIO", 2, 1);
+      printer.printNewLine();
+      printer.printCustom("Cliente: ${venta.clienteNombre}", 1, 0);
+      printer.printCustom("Fecha: $fechaFormateada", 1, 0);
+      printer.printNewLine();
+      
+      // Productos
+      for (var item in productos) {
+        final p = item['producto'];
+        final cant = item['cantidad'];
+        final subtotal = item['subtotal'];
+        printer.printCustom(
+          "${p.nombre} $cant  \$${subtotal.toStringAsFixed(2)}",
+          1,
+          0,
+        );
+      }
+
+      printer.printNewLine();
+      printer.printCustom("TOTAL: \$${venta.total.toStringAsFixed(2)}", 2, 2);
+      printer.printNewLine();
+      if (negocio?.ticketFooter != null && negocio!.ticketFooter!.isNotEmpty) {
+        printer.printCustom(negocio.ticketFooter!, 1, 1);
+      }
+      printer.printNewLine();
+      printer.printNewLine();
+      printer.printNewLine();
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("No hay impresora guardada")),
-      );
-      return;
-    }
-
-    if (!(await printer.isConnected)!) {
-      final devices = await printer.getBondedDevices();
-      final device = devices.firstWhere(
-        (d) => d.address == address,
-        orElse: () => throw "Dispositivo no encontrado",
-      );
-      await printer.connect(device);
-    }
-
-    String fechaFormateada = DateFormat('dd/MM/yyyy HH:mm').format(venta.fecha);
-
-    // Encabezado
-    printer.printCustom("DEPOSITO", 2, 1);
-    printer.printCustom("EL JAROCHO", 2, 1);
-    printer.printNewLine();
-    printer.printCustom("Cliente: ${venta.clienteNombre}", 1, 0);
-    printer.printCustom("Fecha: $fechaFormateada", 1, 0);
-    printer.printNewLine();
-    
-    // Productos
-    for (var item in productos) {
-      final p = item['producto'];
-      final cant = item['cantidad'];
-      final subtotal = item['subtotal'];
-      printer.printCustom(
-        "${p.nombre} $cant  \$${subtotal.toStringAsFixed(2)}",
-        1,
-        0,
+        SnackBar(content: Text("Error al imprimir: $e")),
       );
     }
-
-    printer.printNewLine();
-    printer.printCustom("TOTAL: \$${venta.total.toStringAsFixed(2)}", 2, 2);
-    printer.printNewLine();
-    printer.printNewLine();
-    printer.printNewLine();
-    printer.printNewLine();
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Error al imprimir: $e")),
-    );
   }
-}
 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Nueva Venta'),
+        title: const Text('Nueva Venta'),
         actions: [
           if (_productosSeleccionados.isNotEmpty)
             IconButton(
-              icon: Icon(Icons.clear_all),
+              icon: const Icon(Icons.clear_all),
               onPressed: _limpiarFormulario,
               tooltip: 'Limpiar todo',
             ),
@@ -302,6 +299,8 @@ class _VentaScreenState extends State<VentaScreen> {
         children: [
           // Selector de cliente
           ClienteDropdown(
+            key: ValueKey(_selectedClienteId), // Forzar reconstrucción si se limpia
+            selectedClienteId: _selectedClienteId,
             onClienteSelected: (clienteId, nombreCliente) {
               setState(() {
                 _selectedClienteId = clienteId;
@@ -313,11 +312,11 @@ class _VentaScreenState extends State<VentaScreen> {
           // Info del cliente seleccionado
           if (_nombreCliente != null)
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Row(
                 children: [
-                  Icon(Icons.person, size: 16, color: Colors.grey),
-                  SizedBox(width: 8),
+                  const Icon(Icons.person, size: 16, color: Colors.grey),
+                  const SizedBox(width: 8),
                   Text(
                     'Cliente: $_nombreCliente',
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
@@ -334,13 +333,13 @@ class _VentaScreenState extends State<VentaScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.shopping_cart, size: 64, color: Colors.grey[300]),
-                        SizedBox(height: 16),
-                        Text(
+                        const SizedBox(height: 16),
+                        const Text(
                           'No hay productos agregados',
                           style: TextStyle(color: Colors.grey),
                         ),
-                        SizedBox(height: 8),
-                        Text(
+                        const SizedBox(height: 8),
+                        const Text(
                           'Presiona el botón para agregar productos',
                           style: TextStyle(fontSize: 12, color: Colors.grey),
                         ),
@@ -350,13 +349,13 @@ class _VentaScreenState extends State<VentaScreen> {
                 : Column(
                     children: [
                       Padding(
-                        padding: EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(16.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               'Productos (${_productosSeleccionados.length})',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Text(
                               'Total: \$${_total.toStringAsFixed(2)}',
@@ -385,7 +384,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text('Precio: \$${producto.precio.toStringAsFixed(2)}'),
-                                    Text('Marca: ${producto.marcaNombre ?? 'N/A'}'),
+                                    Text('Categoría: ${producto.categoriaNombre ?? 'N/A'}'),
                                   ],
                                 ),
                                 trailing: Row(
@@ -396,7 +395,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                       children: [
                                         Text(
                                           '${item['cantidad']} uds',
-                                          style: TextStyle(fontWeight: FontWeight.bold),
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
                                         ),
                                         Text(
                                           '\$${item['subtotal'].toStringAsFixed(2)}',
@@ -405,7 +404,7 @@ class _VentaScreenState extends State<VentaScreen> {
                                       ],
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.edit, size: 20),
+                                      icon: const Icon(Icons.edit, size: 20),
                                       onPressed: () => _mostrarEditarCantidad(index),
                                       tooltip: 'Modificar cantidad',
                                     ),
@@ -422,30 +421,32 @@ class _VentaScreenState extends State<VentaScreen> {
 
           // Botones de acción
           Padding(
-            padding: EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
                 if (_productosSeleccionados.isNotEmpty)
                   Text(
                     'Total: \$${_total.toStringAsFixed(2)}',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: Icon(Icons.add_shopping_cart),
+                        icon: const Icon(Icons.add_shopping_cart),
                         onPressed: _mostrarSeleccionProductos,
                         label: Text(_productosSeleccionados.isEmpty ? 'Agregar Productos' : 'Agregar Más'),
                       ),
                     ),
-                    SizedBox(width: 16),
+                    const SizedBox(width: 16),
                     Expanded(
-                      child: ElevatedButton.icon(
-                        icon: Icon(Icons.check),
+                      child: _isProcessing 
+                        ? const Center(child: CircularProgressIndicator())
+                        : ElevatedButton.icon(
+                        icon: const Icon(Icons.check),
                         onPressed: _finalizarVenta,
-                        label: Text('Finalizar Venta'),
+                        label: const Text('Finalizar Venta'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
@@ -482,8 +483,10 @@ class SeleccionProductosScreen extends StatefulWidget {
 class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
   List<Producto> _productos = [];
   List<Producto> _productosFiltrados = [];
-  final Map<int, int> _cantidades = {};
+  final Map<String, int> _cantidades = {};
   final TextEditingController _searchController = TextEditingController();
+  final DataService _dbService = DataService();
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -500,12 +503,17 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
   }
 
   Future<void> _cargarProductos() async {
-    final dbHelper = DatabaseHelper();
-    final productos = await dbHelper.getProductosConMarca();
-    setState(() {
-      _productos = productos.where((p) => p.stock > 0).toList(); // Solo productos con stock
-      _productosFiltrados = List.from(_productos);
-    });
+    try {
+      final productos = await _dbService.getProductos();
+      setState(() {
+        _productos = productos.where((p) => p.stock > 0).toList();
+        _productosFiltrados = List.from(_productos);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _filtrarProductos() {
@@ -513,26 +521,26 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
     setState(() {
       _productosFiltrados = _productos.where((p) {
         final nombre = p.nombre.toLowerCase();
-        final marca = p.marcaNombre?.toLowerCase() ?? '';
-        return nombre.contains(query) || marca.contains(query);
+        final categoria = p.categoriaNombre?.toLowerCase() ?? '';
+        return nombre.contains(query) || categoria.contains(query);
       }).toList();
     });
   }
 
-  void _incrementarCantidad(int productoId, int stockDisponible) {
+  void _incrementarCantidad(String productoId, int stockDisponible) {
     setState(() {
       final cantidadActual = _cantidades[productoId] ?? 0;
       if (cantidadActual < stockDisponible) {
         _cantidades[productoId] = cantidadActual + 1;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No hay suficiente stock disponible')),
+          const SnackBar(content: Text('No hay suficiente stock disponible')),
         );
       }
     });
   }
 
-  void _decrementarCantidad(int productoId) {
+  void _decrementarCantidad(String productoId) {
     setState(() {
       if (_cantidades[productoId] != null && _cantidades[productoId]! > 0) {
         _cantidades[productoId] = _cantidades[productoId]! - 1;
@@ -559,31 +567,33 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       height: MediaQuery.of(context).size.height * 0.85,
       child: Column(
         children: [
-          Text('Seleccionar Productos',
+          const Text('Seleccionar Productos',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              labelText: 'Buscar por nombre o marca',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+              labelText: 'Buscar por nombre o categoría',
+              prefixIcon: const Icon(Icons.search),
+              border: const OutlineInputBorder(),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: Icon(Icons.clear),
+                      icon: const Icon(Icons.clear),
                       onPressed: () => _searchController.clear(),
                     )
                   : null,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Expanded(
-            child: _productosFiltrados.isEmpty
-                ? Center(child: Text('No se encontraron productos'))
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : _productosFiltrados.isEmpty
+                ? const Center(child: Text('No se encontraron productos'))
                 : ListView.builder(
                     itemCount: _productosFiltrados.length,
                     itemBuilder: (context, index) {
@@ -591,14 +601,14 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
                       final cantidad = _cantidades[producto.id] ?? 0;
 
                       return Card(
-                        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
                         child: ListTile(
                           title: Text(producto.nombre),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Precio: \$${producto.precio.toStringAsFixed(2)}'),
-                              Text('Marca: ${producto.marcaNombre ?? 'N/A'}'),
+                              Text('Categoría: ${producto.categoriaNombre ?? 'N/A'}'),
                               Text('Stock: ${producto.stock} disponibles',
                                   style: TextStyle(
                                     color: producto.stock > 0 ? Colors.green : Colors.red,
@@ -609,7 +619,7 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: Icon(Icons.remove),
+                                icon: const Icon(Icons.remove),
                                 onPressed: () => _decrementarCantidad(producto.id!),
                                 color: cantidad > 0 ? Colors.red : Colors.grey,
                               ),
@@ -617,10 +627,10 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
                                 width: 30,
                                 alignment: Alignment.center,
                                 child: Text('$cantidad',
-                                    style: TextStyle(fontWeight: FontWeight.bold)),
+                                    style: const TextStyle(fontWeight: FontWeight.bold)),
                               ),
                               IconButton(
-                                icon: Icon(Icons.add),
+                                icon: const Icon(Icons.add),
                                 onPressed: () => _incrementarCantidad(producto.id!, producto.stock),
                                 color: cantidad < producto.stock ? Colors.green : Colors.grey,
                               ),
@@ -631,20 +641,20 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
                     },
                   ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancelar'),
+                  child: const Text('Cancelar'),
                 ),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
                   onPressed: _agregarProductos,
-                  child: Text('Agregar Selección'),
+                  child: const Text('Agregar Selección'),
                 ),
               ),
             ],

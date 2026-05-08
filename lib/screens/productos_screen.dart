@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:refrescos_app/database/database_helper.dart';
-import 'package:refrescos_app/models/marca.dart';
+import 'package:refrescos_app/services/data_service.dart';
+import 'package:refrescos_app/models/categoria.dart';
 import 'package:refrescos_app/models/producto.dart';
 import 'package:refrescos_app/widgets/producto_card.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProductosScreen extends StatefulWidget {
   @override
@@ -12,13 +13,15 @@ class ProductosScreen extends StatefulWidget {
 class _ProductosScreenState extends State<ProductosScreen> {
   List<Producto> _productos = [];
   List<Producto> _productosFiltrados = [];
-  List<Marca> _marcas = [];
+  List<Categoria> _categorias = [];
+  final DataService _dbService = DataService();
   
   // Variables para filtros
   String _filtroBusqueda = '';
-  int? _filtroMarcaId;
+  String? _filtroCategoriaId;
   String _orden = 'nombre';
   bool _ordenAscendente = true;
+  bool _isLoading = true;
   
   // Controladores
   final TextEditingController _busquedaController = TextEditingController();
@@ -40,15 +43,23 @@ class _ProductosScreenState extends State<ProductosScreen> {
   }
 
   Future<void> _cargarDatos() async {
-    final dbHelper = DatabaseHelper();
-    final productos = await dbHelper.getProductosConMarca();
-    final marcas = await dbHelper.getMarcas();
-    
-    setState(() {
-      _productos = productos;
-      _marcas = marcas;
-      _aplicarFiltros();
-    });
+    setState(() => _isLoading = true);
+    try {
+      final productos = await _dbService.getProductos();
+      final categorias = await _dbService.getCategorias();
+      
+      setState(() {
+        _productos = productos;
+        _categorias = categorias;
+        _aplicarFiltros();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar datos: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _aplicarFiltroBusqueda() {
@@ -68,10 +79,10 @@ class _ProductosScreenState extends State<ProductosScreen> {
       ).toList();
     }
     
-    // Aplicar filtro por marca
-    if (_filtroMarcaId != null) {
+    // Aplicar filtro por categoria
+    if (_filtroCategoriaId != null) {
       productosFiltrados = productosFiltrados.where((producto) => 
-        producto.marcaId == _filtroMarcaId
+        producto.categoriaId == _filtroCategoriaId
       ).toList();
     }
     
@@ -102,7 +113,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   void _limpiarFiltros() {
     setState(() {
       _filtroBusqueda = '';
-      _filtroMarcaId = null;
+      _filtroCategoriaId = null;
       _orden = 'nombre';
       _ordenAscendente = true;
       _busquedaController.clear();
@@ -115,59 +126,71 @@ class _ProductosScreenState extends State<ProductosScreen> {
       context: context,
       builder: (context) => ProductoDialog(
         producto: producto,
-        marcas: _marcas,
+        categorias: _categorias,
         onGuardar: _guardarProducto,
       ),
     ).then((_) => _cargarDatos());
   }
 
   Future<void> _guardarProducto(Producto producto) async {
-    final dbHelper = DatabaseHelper();
-    if (producto.id == null) {
-      await dbHelper.insertProducto(producto);
-    } else {
-      await dbHelper.updateProducto(producto);
+    setState(() => _isLoading = true);
+    try {
+      if (producto.id == null) {
+        await _dbService.insertProducto(producto);
+      } else {
+        await _dbService.updateProducto(producto);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al guardar producto: $e'), backgroundColor: Colors.red),
+      );
     }
-    _cargarDatos();
+    await _cargarDatos();
   }
 
-  Future<void> _eliminarProducto(int id) async {
-    final dbHelper = DatabaseHelper();
-    await dbHelper.deleteProducto(id);
-    _cargarDatos();
+  Future<void> _eliminarProducto(String id) async {
+    setState(() => _isLoading = true);
+    try {
+      await _dbService.deleteProducto(id);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al eliminar producto: $e'), backgroundColor: Colors.red),
+      );
+    }
+    await _cargarDatos();
   }
 
   Widget _buildFiltrosPanel() {
     return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       height: _mostrarFiltros ? 180 : 0,
       child: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Column(
           children: [
-            // Filtro por marca
+            // Filtro por categoria
             Row(
               children: [
-                Text('Marca:', style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(width: 10),
+                const Text('Categoría:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: DropdownButton<int>(
+                  child: DropdownButton<String>(
                     isExpanded: true,
-                    value: _filtroMarcaId,
-                    hint: Text('Todas las marcas'),
+                    value: _filtroCategoriaId,
+                    hint: const Text('Todas las categorías'),
                     items: [
-                      DropdownMenuItem<int>(
+                      const DropdownMenuItem<String>(
                         value: null,
-                        child: Text('Todas las marcas'),
+                        child: Text('Todas las categorías'),
                       ),
-                      ..._marcas.map((marca) => DropdownMenuItem<int>(
-                        value: marca.id,
-                        child: Text(marca.nombre),
+                      ..._categorias.map((cat) => DropdownMenuItem<String>(
+                        value: cat.id,
+                        child: Text(cat.nombre),
                       )).toList(),
                     ],
                     onChanged: (value) {
                       setState(() {
-                        _filtroMarcaId = value;
+                        _filtroCategoriaId = value;
                         _aplicarFiltros();
                       });
                     },
@@ -175,18 +198,18 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             
             // Opciones de ordenamiento
             Row(
               children: [
-                Text('Ordenar por:', style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(width: 10),
+                const Text('Ordenar por:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 10),
                 Expanded(
                   child: DropdownButton<String>(
                     isExpanded: true,
                     value: _orden,
-                    items: [
+                    items: const [
                       DropdownMenuItem<String>(
                         value: 'nombre',
                         child: Text('Nombre'),
@@ -220,13 +243,13 @@ class _ProductosScreenState extends State<ProductosScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             
             // Botón para limpiar filtros
             ElevatedButton.icon(
               onPressed: _limpiarFiltros,
-              icon: Icon(Icons.clear_all),
-              label: Text('Limpiar filtros'),
+              icon: const Icon(Icons.clear_all),
+              label: const Text('Limpiar filtros'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.grey[300],
                 foregroundColor: Colors.black87,
@@ -242,7 +265,7 @@ class _ProductosScreenState extends State<ProductosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Productos'),
+        title: const Text('Productos'),
         actions: [
           IconButton(
             icon: Icon(_mostrarFiltros ? Icons.filter_list_off : Icons.filter_list),
@@ -257,9 +280,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _mostrarDialogoProducto(),
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
-      body: Column(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : Column(
         children: [
           // Barra de búsqueda
           Padding(
@@ -268,11 +293,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
               controller: _busquedaController,
               decoration: InputDecoration(
                 hintText: 'Buscar productos...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
                 suffixIcon: _filtroBusqueda.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear),
+                        icon: const Icon(Icons.clear),
                         onPressed: () {
                           _busquedaController.clear();
                         },
@@ -298,9 +323,9 @@ class _ProductosScreenState extends State<ProductosScreen> {
                     fontStyle: FontStyle.italic,
                   ),
                 ),
-                if (_filtroMarcaId != null || _filtroBusqueda.isNotEmpty)
+                if (_filtroCategoriaId != null || _filtroBusqueda.isNotEmpty)
                   Chip(
-                    label: Text('Filtros activos'),
+                    label: const Text('Filtros activos'),
                     backgroundColor: Colors.blue[100],
                   ),
               ],
@@ -314,16 +339,16 @@ class _ProductosScreenState extends State<ProductosScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
+                        const Icon(Icons.search_off, size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text(
                           'No se encontraron productos',
                           style: TextStyle(fontSize: 18, color: Colors.grey),
                         ),
-                        if (_filtroMarcaId != null || _filtroBusqueda.isNotEmpty)
+                        if (_filtroCategoriaId != null || _filtroBusqueda.isNotEmpty)
                           TextButton(
                             onPressed: _limpiarFiltros,
-                            child: Text('Limpiar filtros'),
+                            child: const Text('Limpiar filtros'),
                           ),
                       ],
                     ),
@@ -346,16 +371,15 @@ class _ProductosScreenState extends State<ProductosScreen> {
   }
 }
 
-
 class ProductoDialog extends StatefulWidget {
   final Producto? producto;
-  final List<Marca> marcas;
+  final List<Categoria> categorias;
   final Function(Producto) onGuardar;
 
   const ProductoDialog({
     Key? key,
     this.producto,
-    required this.marcas,
+    required this.categorias,
     required this.onGuardar,
   }) : super(key: key);
 
@@ -366,7 +390,7 @@ class ProductoDialog extends StatefulWidget {
 class _ProductoDialogState extends State<ProductoDialog> {
   final _formKey = GlobalKey<FormState>();
   late String _nombre;
-  late int? _marcaId;
+  String? _categoriaId;
   late double _costo;
   late double _precio;
   late int _stock;
@@ -375,7 +399,7 @@ class _ProductoDialogState extends State<ProductoDialog> {
   void initState() {
     super.initState();
     _nombre = widget.producto?.nombre ?? '';
-    _marcaId = widget.producto?.marcaId;
+    _categoriaId = widget.producto?.categoriaId;
     _costo = widget.producto?.costo ?? 0.0;
     _precio = widget.producto?.precio ?? 0.0;
     _stock = widget.producto?.stock ?? 0;
@@ -385,10 +409,12 @@ class _ProductoDialogState extends State<ProductoDialog> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       
+      final currentUserId = Supabase.instance.client.auth.currentUser!.id;
       final producto = Producto(
         id: widget.producto?.id,
+        userId: widget.producto?.userId ?? currentUserId,
         nombre: _nombre,
-        marcaId: _marcaId,
+        categoriaId: _categoriaId,
         costo: _costo,
         precio: _precio,
         stock: _stock,
@@ -399,11 +425,15 @@ class _ProductoDialogState extends State<ProductoDialog> {
     }
   }
 
-  void _mostrarDialogoMarca() {
+  void _mostrarDialogoCategoria() {
     showDialog(
       context: context,
-      builder: (context) => MarcaDialog(),
-    ).then((_) => setState(() {}));
+      builder: (context) => CategoriaDialog(),
+    ).then((_) {
+      // Necesita refrescarse llamando al padre, que a su vez refresque las categorías.
+      // O idealmente devolvemos el valor para recargar la lista de categorias en la UI padre.
+      Navigator.of(context).pop(); 
+    });
   }
 
   @override
@@ -418,7 +448,7 @@ class _ProductoDialogState extends State<ProductoDialog> {
             children: [
               TextFormField(
                 initialValue: _nombre,
-                decoration: InputDecoration(labelText: 'Nombre'),
+                decoration: const InputDecoration(labelText: 'Nombre'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Ingresa un nombre';
@@ -430,28 +460,28 @@ class _ProductoDialogState extends State<ProductoDialog> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<int>(
-                      value: _marcaId,
-                      decoration: InputDecoration(labelText: 'Marca'),
-                      items: widget.marcas.map((Marca marca) {
-                        return DropdownMenuItem<int>(
-                          value: marca.id,
-                          child: Text(marca.nombre),
+                    child: DropdownButtonFormField<String>(
+                      value: _categoriaId,
+                      decoration: const InputDecoration(labelText: 'Categoría'),
+                      items: widget.categorias.map((Categoria cat) {
+                        return DropdownMenuItem<String>(
+                          value: cat.id,
+                          child: Text(cat.nombre),
                         );
                       }).toList(),
-                      onChanged: (value) => _marcaId = value,
+                      onChanged: (value) => _categoriaId = value,
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.add),
-                    onPressed: _mostrarDialogoMarca,
-                    tooltip: 'Agregar nueva marca',
+                    icon: const Icon(Icons.add),
+                    onPressed: _mostrarDialogoCategoria,
+                    tooltip: 'Agregar nueva categoría',
                   ),
                 ],
               ),
               TextFormField(
                 initialValue: _costo.toString(),
-                decoration: InputDecoration(labelText: 'Costo'),
+                decoration: const InputDecoration(labelText: 'Costo'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty || double.tryParse(value) == null) {
@@ -463,7 +493,7 @@ class _ProductoDialogState extends State<ProductoDialog> {
               ),
               TextFormField(
                 initialValue: _precio.toString(),
-                decoration: InputDecoration(labelText: 'Precio'),
+                decoration: const InputDecoration(labelText: 'Precio'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty || double.tryParse(value) == null) {
@@ -475,7 +505,7 @@ class _ProductoDialogState extends State<ProductoDialog> {
               ),
               TextFormField(
                 initialValue: _stock.toString(),
-                decoration: InputDecoration(labelText: 'Stock'),
+                decoration: const InputDecoration(labelText: 'Stock'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty || int.tryParse(value) == null) {
@@ -492,44 +522,51 @@ class _ProductoDialogState extends State<ProductoDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancelar'),
+          child: const Text('Cancelar'),
         ),
         TextButton(
           onPressed: _guardar,
-          child: Text('Guardar'),
+          child: const Text('Guardar'),
         ),
       ],
     );
   }
 }
 
-class MarcaDialog extends StatefulWidget {
+class CategoriaDialog extends StatefulWidget {
   @override
-  _MarcaDialogState createState() => _MarcaDialogState();
+  _CategoriaDialogState createState() => _CategoriaDialogState();
 }
 
-class _MarcaDialogState extends State<MarcaDialog> {
+class _CategoriaDialogState extends State<CategoriaDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
 
-  Future<void> _guardarMarca() async {
+  Future<void> _guardarCategoria() async {
     if (_formKey.currentState!.validate()) {
-      final dbHelper = DatabaseHelper();
-      final marca = Marca(nombre: _nombreController.text);
-      await dbHelper.insertMarca(marca);
-      Navigator.of(context).pop();
+      final dbService = DataService();
+      final currentUserId = Supabase.instance.client.auth.currentUser!.id;
+      final cat = Categoria(userId: currentUserId, nombre: _nombreController.text);
+      try {
+        await dbService.insertCategoria(cat);
+        Navigator.of(context).pop();
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al crear categoría: $e')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Nueva Marca'),
+      title: const Text('Nueva Categoría'),
       content: Form(
         key: _formKey,
         child: TextFormField(
           controller: _nombreController,
-          decoration: InputDecoration(labelText: 'Nombre de la marca'),
+          decoration: const InputDecoration(labelText: 'Nombre de la categoría'),
           validator: (value) {
             if (value == null || value.isEmpty) {
               return 'Ingresa un nombre';
@@ -541,11 +578,11 @@ class _MarcaDialogState extends State<MarcaDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancelar'),
+          child: const Text('Cancelar'),
         ),
         TextButton(
-          onPressed: _guardarMarca,
-          child: Text('Guardar'),
+          onPressed: _guardarCategoria,
+          child: const Text('Guardar'),
         ),
       ],
     );

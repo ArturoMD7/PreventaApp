@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:refrescos_app/database/database_helper.dart';
+import 'package:refrescos_app/services/data_service.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
@@ -15,6 +15,7 @@ class TotalScreen extends StatefulWidget {
 class _TotalScreenState extends State<TotalScreen> {
   final Map<String, int> _resumenProductos = {};
   bool _isLoading = false;
+  final DataService _dbService = DataService();
 
   @override
   void initState() {
@@ -23,35 +24,43 @@ class _TotalScreenState extends State<TotalScreen> {
   }
 
   Future<void> _cargarResumen() async {
-    final dbHelper = DatabaseHelper();
-    final query = '''
-      SELECT p.nombre, SUM(dv.cantidad) as total
-      FROM detalles_venta dv
-      JOIN productos p ON dv.producto_id = p.id
-      JOIN ventas v ON dv.venta_id = v.id
-      WHERE v.estado = 'pendiente'
-      GROUP BY p.id
-      ORDER BY total DESC
-    ''';
+    setState(() => _isLoading = true);
+    try {
+      final ventas = await _dbService.getVentas();
+      final ventasPendientes = ventas.where((v) => v.estado == 'pendiente').toList();
+      
+      final resumen = <String, int>{};
 
-    final results = await dbHelper.database.then((db) => db.rawQuery(query));
-    final resumen = <String, int>{};
+      for (var venta in ventasPendientes) {
+        final detalles = await _dbService.getDetallesVenta(venta.id!);
+        for (var detalle in detalles) {
+          final nombre = detalle.productoNombre ?? 'Desconocido';
+          resumen[nombre] = (resumen[nombre] ?? 0) + detalle.cantidad;
+        }
+      }
 
-    for (var row in results) {
-      resumen[row['nombre'] as String] = row['total'] as int;
+      // Ordenar por cantidad descendente
+      final sortedResumen = Map.fromEntries(
+        resumen.entries.toList()..sort((e1, e2) => e2.value.compareTo(e1.value))
+      );
+
+      setState(() {
+        _resumenProductos.clear();
+        _resumenProductos.addAll(sortedResumen);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      setState(() => _isLoading = false);
     }
-
-    setState(() {
-      _resumenProductos.clear();
-      _resumenProductos.addAll(resumen);
-    });
   }
 
   Future<void> _generarYCompartirPDF() async {
     setState(() => _isLoading = true);
 
     try {
-      // Crear el PDF
+      final negocio = await _dbService.getNegocio();
+      
       final pdf = pw.Document();
       final fecha = DateTime.now();
       final fechaFormateada =
@@ -66,7 +75,7 @@ class _TotalScreenState extends State<TotalScreen> {
               children: [
                 pw.Center(
                   child: pw.Text(
-                    'DEPOSITO EL JAROCHO',
+                    negocio?.nombreNegocio ?? 'MI NEGOCIO',
                     style: pw.TextStyle(
                       fontSize: 18,
                       fontWeight: pw.FontWeight.bold,
@@ -95,7 +104,7 @@ class _TotalScreenState extends State<TotalScreen> {
                   context: context,
                   border: null,
                   headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                  headerDecoration: pw.BoxDecoration(
+                  headerDecoration: const pw.BoxDecoration(
                     color: PdfColor.fromInt(0xFFE3F2FD),
                   ),
                   cellAlignment: pw.Alignment.centerLeft,
@@ -126,14 +135,13 @@ class _TotalScreenState extends State<TotalScreen> {
         ),
       );
 
-      // Guardar PDF
       final directory = await getTemporaryDirectory();
       final path =
           '${directory.path}/resumen_pendientes_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final file = File(path);
       await file.writeAsBytes(await pdf.save());
 
-      // Mostrar opciones
+      if (!mounted) return;
       _mostrarOpcionesPDF(path);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +151,7 @@ class _TotalScreenState extends State<TotalScreen> {
         ),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -151,33 +159,33 @@ class _TotalScreenState extends State<TotalScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('PDF Generado'),
-        content: Text('¿Qué deseas hacer con el archivo?'),
+        title: const Text('PDF Generado'),
+        content: const Text('¿Qué deseas hacer con el archivo?'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _abrirArchivo(path);
             },
-            child: Text('Abrir'),
+            child: const Text('Abrir'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _mostrarRutaArchivo(path);
             },
-            child: Text('Ver ubicación'),
+            child: const Text('Ver ubicación'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _compartirArchivo(path);
             },
-            child: Text('Compartir'),
+            child: const Text('Compartir'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
         ],
       ),
@@ -199,12 +207,12 @@ class _TotalScreenState extends State<TotalScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Ubicación del PDF'),
+        title: const Text('Ubicación del PDF'),
         content: SelectableText('Archivo guardado en:\n$path'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -215,19 +223,19 @@ class _TotalScreenState extends State<TotalScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Total Productos Pendientes'),
+        title: const Text('Total Productos Pendientes'),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: _cargarResumen,
             tooltip: 'Actualizar',
           ),
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _cargarResumen,
               child: _resumenProductos.isEmpty
@@ -237,8 +245,8 @@ class _TotalScreenState extends State<TotalScreen> {
                         children: [
                           Icon(Icons.inventory_2,
                               size: 64, color: Colors.grey[300]),
-                          SizedBox(height: 16),
-                          Text(
+                          const SizedBox(height: 16),
+                          const Text(
                             'No hay productos pendientes',
                             style: TextStyle(fontSize: 18, color: Colors.grey),
                           ),
@@ -248,12 +256,12 @@ class _TotalScreenState extends State<TotalScreen> {
                   : Column(
                       children: [
                         Container(
-                          padding: EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(16),
                           color: Colors.blue[50],
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              const Text(
                                 'Total:',
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 16),
@@ -273,11 +281,11 @@ class _TotalScreenState extends State<TotalScreen> {
                           child: ListView(
                             children: _resumenProductos.entries.map((entry) {
                               return Card(
-                                margin: EdgeInsets.symmetric(
+                                margin: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 6),
                                 child: ListTile(
                                   title: Text(entry.key,
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                           fontWeight: FontWeight.w500)),
                                   trailing: Text(
                                     '${entry.value} unidades',
@@ -297,9 +305,9 @@ class _TotalScreenState extends State<TotalScreen> {
       floatingActionButton: _resumenProductos.isNotEmpty
           ? FloatingActionButton(
               onPressed: _generarYCompartirPDF,
-              child: Icon(Icons.picture_as_pdf),
               backgroundColor: Colors.blue[700],
               tooltip: 'Generar PDF',
+              child: const Icon(Icons.picture_as_pdf),
             )
           : null,
     );

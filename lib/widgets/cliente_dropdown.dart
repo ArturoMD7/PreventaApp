@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:refrescos_app/database/database_helper.dart';
+import 'package:refrescos_app/services/data_service.dart';
 import 'package:refrescos_app/models/cliente.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Modifica tu ClienteDropdown para que devuelva más información
 class ClienteDropdown extends StatefulWidget {
-  final Function(int?, String?) onClienteSelected; // Ahora devuelve ID y nombre
-  final int? selectedClienteId;
+  final Function(String?, String?) onClienteSelected;
+  final String? selectedClienteId;
 
   const ClienteDropdown({
     Key? key,
@@ -19,7 +19,8 @@ class ClienteDropdown extends StatefulWidget {
 
 class _ClienteDropdownState extends State<ClienteDropdown> {
   List<Cliente> _clientes = [];
-  int? _selectedClienteId;
+  String? _selectedClienteId;
+  final DataService _dbService = DataService();
 
   @override
   void initState() {
@@ -29,38 +30,41 @@ class _ClienteDropdownState extends State<ClienteDropdown> {
   }
 
   Future<void> _cargarClientes() async {
-    final dbHelper = DatabaseHelper();
-    final clientes = await dbHelper.getClientes();
-    setState(() {
-      _clientes = clientes;
-    });
+    try {
+      final clientes = await _dbService.getClientes();
+      setState(() {
+        _clientes = clientes;
+      });
+    } catch (e) {
+      // Ignorar o loguear error
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: DropdownButtonFormField<int>(
+      child: DropdownButtonFormField<String>(
         value: _selectedClienteId,
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
           labelText: 'Seleccionar Cliente',
           border: OutlineInputBorder(),
         ),
         items: _clientes.map((Cliente cliente) {
-          return DropdownMenuItem<int>(
+          return DropdownMenuItem<String>(
             value: cliente.id,
             child: Text(cliente.nombre),
           );
         }).toList(),
-        onChanged: (int? value) {
+        onChanged: (String? value) {
           setState(() {
             _selectedClienteId = value;
           });
           
-          // Encontrar el cliente seleccionado para obtener su nombre
+          final currentUserId = Supabase.instance.client.auth.currentUser!.id;
           final clienteSeleccionado = _clientes.firstWhere(
             (cliente) => cliente.id == value,
-            orElse: () => Cliente(id: -1, nombre: ''),
+            orElse: () => Cliente(id: '', userId: currentUserId, nombre: ''),
           );
           
           widget.onClienteSelected(value, clienteSeleccionado.nombre);
