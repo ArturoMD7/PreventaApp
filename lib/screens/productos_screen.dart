@@ -294,7 +294,6 @@ class _ProductosScreenState extends State<ProductosScreen> {
               decoration: InputDecoration(
                 hintText: 'Buscar productos...',
                 prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
                 suffixIcon: _filtroBusqueda.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),

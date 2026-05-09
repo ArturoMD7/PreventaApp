@@ -241,8 +241,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Clientes"),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -261,11 +259,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
               decoration: InputDecoration(
                 hintText: 'Buscar clientes...',
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
@@ -309,10 +302,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _mostrarDialogo(),
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
         tooltip: 'Agregar nuevo cliente',
+        child: const Icon(Icons.add),
       ),
     );
   }

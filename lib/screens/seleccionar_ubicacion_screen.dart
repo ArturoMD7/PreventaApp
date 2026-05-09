@@ -155,12 +155,6 @@ class _SeleccionarUbicacionScreenState extends State<SeleccionarUbicacionScreen>
               label: const Text('Confirmar Ubicación', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: const Color(0xFF1E3A8A),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 5,
               ),
             ),
           )

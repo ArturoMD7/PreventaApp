@@ -195,7 +195,6 @@ class _VentaScreenState extends State<VentaScreen> {
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             labelText: 'Cantidad de ${producto.nombre}',
-            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -449,7 +448,6 @@ class _VentaScreenState extends State<VentaScreen> {
                         label: const Text('Finalizar Venta'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
                         ),
                       ),
                     ),
@@ -579,7 +577,6 @@ class _SeleccionProductosScreenState extends State<SeleccionProductosScreen> {
             decoration: InputDecoration(
               labelText: 'Buscar por nombre o categoría',
               prefixIcon: const Icon(Icons.search),
-              border: const OutlineInputBorder(),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),

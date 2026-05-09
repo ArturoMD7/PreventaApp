@@ -105,7 +105,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       controller: _nombreController,
                       decoration: const InputDecoration(
                         labelText: 'Nombre del Negocio',
-                        border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.store),
                       ),
                       validator: (value) {
@@ -122,7 +121,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Encabezado del Ticket (Opcional)',
                         hintText: 'Ej. ¡Bienvenido a nuestro local!',
-                        border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.title),
                       ),
                     ),
@@ -133,7 +131,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Pie del Ticket (Opcional)',
                         hintText: 'Ej. ¡Gracias por su compra!',
-                        border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.text_snippet),
                       ),
                       maxLines: 2,
@@ -149,8 +146,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                             onPressed: _guardarConfiguracion,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1E3A8A),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                           ),
                   ],

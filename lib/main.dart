@@ -85,10 +85,12 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'POS App',
       theme: ThemeData(
+        scaffoldBackgroundColor: Colors.grey.shade50,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1E3A8A), // Azul corporativo elegante
           primary: const Color(0xFF1E3A8A),
           secondary: const Color(0xFF3B82F6),
+          surface: Colors.white,
         ),
         textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
         useMaterial3: true,
@@ -97,6 +99,83 @@ class _MyAppState extends State<MyApp> {
           elevation: 0,
           backgroundColor: Color(0xFF1E3A8A),
           foregroundColor: Colors.white,
+        ),
+        cardTheme: CardTheme(
+          elevation: 4,
+          shadowColor: Colors.black.withOpacity(0.1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Colors.white,
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          labelStyle: const TextStyle(color: Colors.black54),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.grey),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF3B82F6),
+            foregroundColor: Colors.white,
+            elevation: 2,
+            shadowColor: const Color(0xFF3B82F6).withOpacity(0.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.grey, width: 1),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+          ),
+        ),
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          backgroundColor: const Color(0xFF3B82F6),
+          foregroundColor: Colors.white,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+        listTileTheme: ListTileThemeData(
+          iconColor: const Color(0xFF3B82F6),
+          textColor: Colors.black87,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          indicatorColor: const Color(0xFF3B82F6).withOpacity(0.2),
+          backgroundColor: Colors.white,
+          labelTextStyle: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.selected)) {
+              return const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A));
+            }
+            return const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black54);
+          }),
+          iconTheme: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.selected)) {
+              return const IconThemeData(color: Color(0xFF1E3A8A));
+            }
+            return const IconThemeData(color: Colors.black54);
+          }),
         ),
       ),
       builder: (context, child) {
@@ -192,19 +271,32 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
       drawer: Drawer(
+        backgroundColor: Colors.grey.shade50,
         child: Column(
           children: [
             UserAccountsDrawerHeader(
               decoration: const BoxDecoration(
-                color: Color(0xFF1E3A8A),
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0A2540), Color(0xFF1E3A8A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              accountName: Text(userName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              accountEmail: Text(userEmail),
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                  style: const TextStyle(fontSize: 24, color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+              accountName: Text(userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              accountEmail: Text(userEmail, style: const TextStyle(color: Colors.white70)),
+              currentAccountPicture: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))
+                  ],
+                ),
+                child: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                    style: const TextStyle(fontSize: 28, color: Color(0xFF1E3A8A), fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
             ),

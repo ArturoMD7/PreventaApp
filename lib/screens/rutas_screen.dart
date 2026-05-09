@@ -67,8 +67,6 @@ class _RutasScreenState extends State<RutasScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Rutas de Entrega'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

@@ -555,8 +555,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tickets de Ventas'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: Icon(_mostrarFiltros ? Icons.filter_list_off : Icons.filter_list),
@@ -580,11 +578,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
               decoration: InputDecoration(
                 hintText: 'Buscar por cliente o ID...',
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
                 suffixIcon: _filtroBusqueda.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),

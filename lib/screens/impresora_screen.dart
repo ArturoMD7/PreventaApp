@@ -298,8 +298,6 @@ class _ImpresoraScreenState extends State<ImpresoraScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text("Configurar impresora"),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
@@ -379,8 +377,6 @@ class _ImpresoraScreenState extends State<ImpresoraScreen> {
                     label: Text("Probar Impresión"),
                     onPressed: _testPrint,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
-                      foregroundColor: Colors.white,
                       minimumSize: Size(double.infinity, 50),
                     ),
                   ),
