@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:refrescos_app/services/auth_service.dart';
-import 'package:refrescos_app/main.dart'; // Para navegar a MainScreen
+import 'package:refrescos_app/main.dart'; 
 
 class LoginScreen extends StatefulWidget {
+  const LoginScreen({Key? key}) : super(key: key);
+
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
@@ -61,114 +63,172 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo o Icono
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(Icons.point_of_sale_rounded, size: 80, color: Colors.white),
-                  ),
-                  const SizedBox(height: 32),
-                  
-                  // Textos
-                  const Text(
-                    'Punto de Venta',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Gestiona tu negocio de forma inteligente,\nincluso sin conexión a internet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-
-                  // Tarjeta de Login
-                  Card(
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        children: [
-                          const Text(
-                            'Acceso Seguro',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
-                          ),
-                          const SizedBox(height: 24),
-                          
-                          _isLoading
-                              ? const Center(child: CircularProgressIndicator(color: Color(0xFF1E3A8A)))
-                              : SizedBox(
-                                  width: double.infinity,
-                                  height: 50,
-                                  child: OutlinedButton.icon(
-                                    icon: Image.network(
-                                      'https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg',
-                                      height: 24,
-                                    ),
-                                    label: const Text(
-                                      'Continuar con Google',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    onPressed: _signInWithGoogle,
-                                    style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: Colors.grey, width: 1),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      backgroundColor: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          // Background Gradient
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0A2540), Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
             ),
           ),
-        ),
+          
+          // Subtle, transparent pattern of floating arrows
+          Positioned(
+            top: 250, right: -40,
+            child: Icon(Icons.arrow_upward_rounded, size: 160, color: Colors.white.withOpacity(0.04)),
+          ),
+          Positioned(
+            bottom: -30, right: 30,
+            child: Icon(Icons.arrow_circle_up, size: 140, color: Colors.white.withOpacity(0.04)),
+          ),
+
+          // Main Content
+          SafeArea(
+            child: Center(
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Logo and App Name
+                      Column(
+                        children: [
+                          Image.asset(
+                            'assets/logo.png',
+                            height: 120,
+                            fit: BoxFit.contain,
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'PreventaApp',
+                            style: TextStyle(
+                              fontFamily: 'Roboto', // Modern sans-serif
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Text(
+                              'Gestión inteligente para tu fuerza de venta, con o sin conexión',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white70,
+                                height: 1.5,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 48),
+
+                      // Tarjeta de Login (Clean white card with soft shadows)
+                      Card(
+                        elevation: 12,
+                        shadowColor: Colors.black.withOpacity(0.4),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Center(
+                                child: Text(
+                                  'Iniciar sesión o registrarse',
+                                  style: TextStyle(
+                                    fontSize: 20, 
+                                    fontWeight: FontWeight.w800, 
+                                    color: Color(0xFF1E3A8A)
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              
+                              // Iniciar Sesión Button (Google)
+                              _isLoading
+                                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
+                                  : SizedBox(
+                                      height: 56,
+                                      child: OutlinedButton.icon(
+                                        onPressed: _signInWithGoogle,
+                                        icon: Image.asset(
+                                          'assets/google.png',
+                                          height: 24,
+                                        ),
+                                        label: const Text(
+                                          'Continuar con Google',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: const BorderSide(color: Colors.grey, width: 1),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          backgroundColor: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      
+                      // DEBUG and system status bars (Subtle text at the bottom)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'DEBUG',
+                              style: TextStyle(
+                                color: Colors.white, 
+                                fontSize: 10, 
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'v1.0.0 (Build 42) - Conectado',
+                            style: TextStyle(
+                              color: Colors.white70, 
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
