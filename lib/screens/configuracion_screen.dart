@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:refrescos_app/models/negocio.dart';
 import 'package:refrescos_app/services/data_service.dart';
@@ -90,6 +91,70 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Código de Proveedor
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      color: Colors.blue.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Tu Código de Proveedor',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E3A8A),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Comparte este código con tus clientes para que puedan vincularse a tu catálogo desde la App Cliente.',
+                              style: TextStyle(color: Colors.black87),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.blue.shade200),
+                                    ),
+                                    child: Text(
+                                      Supabase.instance.client.auth.currentUser?.id ?? 'No disponible',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  onPressed: () {
+                                    final id = Supabase.instance.client.auth.currentUser?.id;
+                                    if (id != null) {
+                                      Clipboard.setData(ClipboardData(text: id));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Código copiado al portapapeles'),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.copy, color: Color(0xFF1E3A8A)),
+                                  tooltip: 'Copiar código',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                     const Text(
                       'Personaliza tu App y Tickets',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
