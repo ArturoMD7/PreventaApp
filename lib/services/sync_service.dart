@@ -1,5 +1,6 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:refrescos_app/services/database_helper.dart';
 
 class SyncService {
@@ -21,6 +22,14 @@ class SyncService {
 
     _isSyncing = true;
     try {
+      // Refrescar sesión si está próxima a expirar o ya expiró
+      try {
+        await _supabase.auth.refreshSession();
+      } catch (_) {
+        // Si el refresh falla (sesión totalmente inválida), no bloqueamos el sync
+        // El usuario deberá volver a iniciar sesión
+      }
+
       await _pushUnsyncedData();
       await _pullRemoteData();
     } catch (e) {
@@ -93,13 +102,72 @@ class SyncService {
               final insertData = Map<String, dynamic>.from(row);
               insertData.remove('created_at');
               insertData['sync_status'] = 0;
-              await txn.insert(table, insertData);
+              // Para clientes: usar el teléfono real si está disponible
+              if (table == 'clientes' &&
+                  insertData['telefono_real'] != null &&
+                  (insertData['telefono_real'] as String).isNotEmpty) {
+                insertData['telefono'] = insertData['telefono_real'];
+              }
+              await txn.insert(table, insertData,
+                  conflictAlgorithm: ConflictAlgorithm.replace);
             }
           }
         });
+
+        // ── EXTRA: cuando bajamos ventas, asegurarnos de tener los clientes
+        //    referenciados (pueden haber sido creados desde la app cliente)
+        if (table == 'ventas' && response.isNotEmpty) {
+          await _pullClientesReferenciados(db, response);
+        }
       } catch (e) {
         print('Error bajando de $table: $e');
       }
+    }
+  }
+
+  /// Descarga de Supabase los registros de `clientes` referenciados en ventas
+  /// que aún no existen en el SQLite local del proveedor.
+  Future<void> _pullClientesReferenciados(
+      dynamic db, List<Map<String, dynamic>> ventas) async {
+    // Recopilar cliente_ids presentes en las ventas
+    final clienteIds = ventas
+        .where((v) => v['cliente_id'] != null)
+        .map((v) => v['cliente_id'] as String)
+        .toSet()
+        .toList();
+
+    if (clienteIds.isEmpty) return;
+
+    // Filtrar los que ya existen en SQLite
+    final List<String> faltantes = [];
+    for (final cid in clienteIds) {
+      final local = await db.query('clientes', where: 'id = ?', whereArgs: [cid]);
+      if (local.isEmpty) faltantes.add(cid);
+    }
+
+    if (faltantes.isEmpty) return;
+
+    try {
+      final remoteClientes = await _supabase
+          .from('clientes')
+          .select()
+          .inFilter('id', faltantes);
+
+      for (var row in remoteClientes) {
+        final insertData = Map<String, dynamic>.from(row);
+        insertData.remove('created_at');
+        insertData['sync_status'] = 0;
+        // Mostrar el teléfono real si existe, de lo contrario dejar el UUID
+        if (insertData['telefono_real'] != null &&
+            (insertData['telefono_real'] as String).isNotEmpty) {
+          insertData['telefono'] = insertData['telefono_real'];
+        }
+        // Usar replace para que datos actualizados de Supabase sobrescriban el local
+        await db.insert('clientes', insertData,
+            conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    } catch (e) {
+      print('Error jalando clientes referenciados: $e');
     }
   }
 }

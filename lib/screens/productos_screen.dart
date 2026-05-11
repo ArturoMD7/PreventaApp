@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:refrescos_app/services/data_service.dart';
+import 'package:refrescos_app/services/sync_service.dart';
 import 'package:refrescos_app/models/categoria.dart';
 import 'package:refrescos_app/models/producto.dart';
 import 'package:refrescos_app/widgets/producto_card.dart';
@@ -40,6 +41,25 @@ class _ProductosScreenState extends State<ProductosScreen> {
   void dispose() {
     _busquedaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sincronizarYCargar() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              SizedBox(width: 12),
+              Text('Sincronizando con servidor...'),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    await SyncService().syncAll();
+    await _cargarDatos();
   }
 
   Future<void> _cargarDatos() async {
@@ -267,6 +287,11 @@ class _ProductosScreenState extends State<ProductosScreen> {
       appBar: AppBar(
         title: const Text('Productos'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: _sincronizarYCargar,
+            tooltip: 'Sincronizar y actualizar',
+          ),
           IconButton(
             icon: Icon(_mostrarFiltros ? Icons.filter_list_off : Icons.filter_list),
             onPressed: () {

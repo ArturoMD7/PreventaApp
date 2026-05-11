@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:refrescos_app/services/data_service.dart';
+import 'package:refrescos_app/services/sync_service.dart';
 import 'package:refrescos_app/models/venta.dart';
 import 'package:refrescos_app/widgets/venta_item.dart';
 import 'package:intl/intl.dart';
@@ -113,6 +114,25 @@ class _TicketsScreenState extends State<TicketsScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _sincronizarYCargar() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              SizedBox(width: 12),
+              Text('Sincronizando con servidor...'),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    await SyncService().syncAll();
+    await _cargarVentas();
   }
 
   Future<void> _cargarVentas() async {
@@ -557,6 +577,11 @@ class _TicketsScreenState extends State<TicketsScreen> {
         title: const Text('Tickets de Ventas'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: _sincronizarYCargar,
+            tooltip: 'Sincronizar y actualizar',
+          ),
+          IconButton(
             icon: Icon(_mostrarFiltros ? Icons.filter_list_off : Icons.filter_list),
             onPressed: () {
               setState(() {
@@ -615,7 +640,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
           
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _cargarVentas,
+              onRefresh: _sincronizarYCargar,
               child: _buildListaVentas(),
             ),
           ),

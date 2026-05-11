@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:refrescos_app/models/cliente.dart';
 import 'package:refrescos_app/services/data_service.dart';
+import 'package:refrescos_app/services/sync_service.dart';
 import 'package:refrescos_app/widgets/cliente_dialog.dart';
 
 class ClientesScreen extends StatefulWidget {
@@ -26,6 +27,25 @@ class _ClientesScreenState extends State<ClientesScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sincronizarYCargar() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              SizedBox(width: 12),
+              Text('Sincronizando con servidor...'),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    await SyncService().syncAll();
+    await _cargarClientes();
   }
 
   Future<void> _cargarClientes() async {
@@ -243,9 +263,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
         title: const Text("Clientes"),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _cargarClientes,
-            tooltip: 'Actualizar lista',
+            icon: const Icon(Icons.sync),
+            onPressed: _sincronizarYCargar,
+            tooltip: 'Sincronizar y actualizar',
           ),
         ],
       ),
@@ -294,7 +314,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
           // Lista de clientes
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _cargarClientes,
+              onRefresh: _sincronizarYCargar,
               child: _buildClientesList(),
             ),
           ),

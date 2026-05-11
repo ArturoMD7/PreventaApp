@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:refrescos_app/services/data_service.dart';
+import 'package:refrescos_app/services/sync_service.dart';
 import 'package:refrescos_app/models/detalle_venta.dart';
 import 'package:refrescos_app/models/producto.dart';
 import 'package:refrescos_app/models/venta.dart';
@@ -24,6 +25,34 @@ class _VentaScreenState extends State<VentaScreen> {
   double _total = 0.0;
   final DataService _dbService = DataService();
   bool _isProcessing = false;
+  // Clave para forzar rebuild del dropdown al sincronizar
+  int _dropdownKey = 0;
+
+  Future<void> _sincronizar() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              SizedBox(width: 12),
+              Text('Sincronizando clientes...'),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    await SyncService().syncAll();
+    if (mounted) {
+      setState(() {
+        // Forzar rebuild del ClienteDropdown para que recargue la lista
+        _dropdownKey++;
+        _selectedClienteId = null;
+        _nombreCliente = null;
+      });
+    }
+  }
 
   void _agregarProducto(Producto producto, int cantidad) {
     final subtotal = producto.precio * cantidad;
@@ -166,6 +195,7 @@ class _VentaScreenState extends State<VentaScreen> {
       _total = 0.0;
       _selectedClienteId = null;
       _nombreCliente = null;
+      _dropdownKey++; // Forzar rebuild del dropdown
     });
   }
 
@@ -286,6 +316,11 @@ class _VentaScreenState extends State<VentaScreen> {
       appBar: AppBar(
         title: const Text('Nueva Venta'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: _sincronizar,
+            tooltip: 'Sincronizar clientes',
+          ),
           if (_productosSeleccionados.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear_all),
@@ -298,7 +333,7 @@ class _VentaScreenState extends State<VentaScreen> {
         children: [
           // Selector de cliente
           ClienteDropdown(
-            key: ValueKey(_selectedClienteId), // Forzar reconstrucción si se limpia
+            key: ValueKey(_dropdownKey), // Forzar reconstrucción al sync o limpiar
             selectedClienteId: _selectedClienteId,
             onClienteSelected: (clienteId, nombreCliente) {
               setState(() {

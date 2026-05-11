@@ -244,10 +244,21 @@ class DataService {
   }
 
   // ---- Deletions (Direct to Supabase + Local Delete) ----
+
+  /// Intenta refrescar la sesión de Supabase antes de operaciones directas.
+  Future<void> _refreshSessionIfNeeded() async {
+    try {
+      await Supabase.instance.client.auth.refreshSession();
+    } catch (_) {}
+  }
+
   Future<void> deleteCliente(String id) async {
     final db = await _dbHelper.database;
     await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
-    try { await Supabase.instance.client.from('clientes').delete().eq('id', id); } catch (_) {}
+    await _refreshSessionIfNeeded();
+    try { await Supabase.instance.client.from('clientes').delete().eq('id', id); } catch (e) {
+      print('Error eliminando cliente de Supabase: $e');
+    }
   }
 
   Future<void> insertCategoria(Categoria cat) async {
@@ -262,24 +273,36 @@ class DataService {
   Future<void> deleteProducto(String id) async {
     final db = await _dbHelper.database;
     await db.delete('productos', where: 'id = ?', whereArgs: [id]);
-    try { await Supabase.instance.client.from('productos').delete().eq('id', id); } catch (_) {}
+    await _refreshSessionIfNeeded();
+    try { await Supabase.instance.client.from('productos').delete().eq('id', id); } catch (e) {
+      print('Error eliminando producto de Supabase: $e');
+    }
   }
 
   Future<void> deleteVenta(String id) async {
     final db = await _dbHelper.database;
     await db.delete('ventas', where: 'id = ?', whereArgs: [id]);
-    try { await Supabase.instance.client.from('ventas').delete().eq('id', id); } catch (_) {}
+    await _refreshSessionIfNeeded();
+    try { await Supabase.instance.client.from('ventas').delete().eq('id', id); } catch (e) {
+      print('Error eliminando venta de Supabase: $e');
+    }
   }
 
   Future<void> deleteCredito(String id) async {
     final db = await _dbHelper.database;
     await db.delete('creditos', where: 'id = ?', whereArgs: [id]);
-    try { await Supabase.instance.client.from('creditos').delete().eq('id', id); } catch (_) {}
+    await _refreshSessionIfNeeded();
+    try { await Supabase.instance.client.from('creditos').delete().eq('id', id); } catch (e) {
+      print('Error eliminando crédito de Supabase: $e');
+    }
   }
 
   Future<void> deletePrestamo(String id) async {
     final db = await _dbHelper.database;
     await db.delete('prestamos', where: 'id = ?', whereArgs: [id]);
-    try { await Supabase.instance.client.from('prestamos').delete().eq('id', id); } catch (_) {}
+    await _refreshSessionIfNeeded();
+    try { await Supabase.instance.client.from('prestamos').delete().eq('id', id); } catch (e) {
+      print('Error eliminando préstamo de Supabase: $e');
+    }
   }
 }

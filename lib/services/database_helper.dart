@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -30,6 +30,9 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE clientes ADD COLUMN latitud REAL');
       await db.execute('ALTER TABLE clientes ADD COLUMN longitud REAL');
+    }
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE clientes ADD COLUMN telefono_real TEXT');
     }
   }
 
@@ -52,6 +55,7 @@ class DatabaseHelper {
         user_id TEXT,
         nombre TEXT,
         telefono TEXT,
+        telefono_real TEXT,
         direccion TEXT,
         latitud REAL,
         longitud REAL,

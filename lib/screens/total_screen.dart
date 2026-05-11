@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:refrescos_app/services/data_service.dart';
+import 'package:refrescos_app/services/sync_service.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +22,25 @@ class _TotalScreenState extends State<TotalScreen> {
   void initState() {
     super.initState();
     _cargarResumen();
+  }
+
+  Future<void> _sincronizarYCargar() async {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              SizedBox(width: 12),
+              Text('Sincronizando con servidor...'),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+    await SyncService().syncAll();
+    await _cargarResumen();
   }
 
   Future<void> _cargarResumen() async {
@@ -228,16 +248,16 @@ class _TotalScreenState extends State<TotalScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _cargarResumen,
-            tooltip: 'Actualizar',
+            icon: const Icon(Icons.sync),
+            onPressed: _sincronizarYCargar,
+            tooltip: 'Sincronizar y actualizar',
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _cargarResumen,
+              onRefresh: _sincronizarYCargar,
               child: _resumenProductos.isEmpty
                   ? Center(
                       child: Column(
