@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sqflite/sqflite.dart';
@@ -15,6 +16,7 @@ class SyncService {
   String? get _userId => _supabase.auth.currentUser?.id;
 
   Future<void> syncAll() async {
+    if (kIsWeb) return;
     if (_isSyncing || _userId == null) return;
     
     final connectivityResult = await Connectivity().checkConnectivity();
@@ -41,7 +43,7 @@ class SyncService {
 
   // ---- PUSH (Subir a Supabase) ----
   Future<void> _pushUnsyncedData() async {
-    final db = await _dbHelper.database;
+    final db = (await _dbHelper.database)!;
     final tables = [
       'negocios', 'clientes', 'categorias', 'productos',
       'ventas', 'detalles_venta', 'creditos', 'prestamos'
@@ -68,7 +70,7 @@ class SyncService {
 
   // ---- PULL (Descargar de Supabase) ----
   Future<void> _pullRemoteData() async {
-    final db = await _dbHelper.database;
+    final db = (await _dbHelper.database)!;
 
     final tables = [
       'negocios', 'clientes', 'categorias', 'productos',

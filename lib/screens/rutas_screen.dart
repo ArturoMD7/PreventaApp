@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:refrescos_app/services/data_service.dart';
 import 'package:refrescos_app/models/cliente.dart';
-import 'package:refrescos_app/models/venta.dart';
 
 class RutasScreen extends StatefulWidget {
   @override

@@ -50,13 +50,14 @@ class _ClienteDropdownState extends State<ClienteDropdown> {
           labelText: 'Seleccionar Cliente',
           border: OutlineInputBorder(),
         ),
+        hint: _clientes.isEmpty ? const Text('No hay clientes registrados') : null,
         items: _clientes.map((Cliente cliente) {
           return DropdownMenuItem<String>(
             value: cliente.id,
             child: Text(cliente.nombre),
           );
         }).toList(),
-        onChanged: (String? value) {
+        onChanged: _clientes.isEmpty ? null : (String? value) {
           setState(() {
             _selectedClienteId = value;
           });

@@ -42,23 +42,28 @@ class _CorteScreenState extends State<CorteScreen> {
       double totalVentas = 0.0;
       double totalCostos = 0.0;
       
+      // Obtener costo de cada producto para el cálculo de costos
+      final productos = await _dbService.getProductos();
+      final costoProductos = <String, double>{};
+      for (var producto in productos) {
+        if (producto.id != null) {
+          costoProductos[producto.id!] = producto.costo;
+        }
+      }
+
       for (var venta in ventasDelDia) {
         totalVentas += venta.total;
         final detalles = await _dbService.getDetallesVenta(venta.id!);
-        
+
         for (var detalle in detalles) {
-          // En una app más robusta, el costo histórico debería guardarse en detalle_venta
-          // Por simplicidad, asumimos que el costo es proporcional o que no cambió mucho
-          // O podemos simplemente omitir costo si no lo tenemos en el detalle.
-          // Aquí idealmente necesitamos hacer join con producto. 
-          // Como DataService.getDetallesVenta hace join con productos(nombre), podríamos necesitar costo.
-          // Para no romper la funcionalidad, necesitamos obtener el producto:
+          final costoUnitario = costoProductos[detalle.productoId] ?? 0.0;
+          totalCostos += costoUnitario * detalle.cantidad;
         }
       }
       
       setState(() {
         _totalVentas = totalVentas;
-        _totalCostos = totalCostos; // Para implementarlo bien, requerimos guardar 'costo' en detalles_venta al momento de vender.
+        _totalCostos = totalCostos;
         _ganancias = totalVentas - totalCostos;
         _ventasCount = ventasDelDia.length;
       });
@@ -112,10 +117,17 @@ class _CorteScreenState extends State<CorteScreen> {
               ),
             ),
             Card(
+              child: ListTile(
+                title: const Text('Total Costos'),
+                trailing: Text('\$${_totalCostos.toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            Card(
               color: _ganancias >= 0 ? Colors.green[100] : Colors.red[100],
               child: ListTile(
-                title: const Text('Ganancias brutas (Total ventas)'),
-                trailing: Text('\$${_totalVentas.toStringAsFixed(2)}',
+                title: const Text('Ganancias brutas'),
+                trailing: Text('\$${_ganancias.toStringAsFixed(2)}',
                     style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,

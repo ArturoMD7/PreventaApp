@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -8,7 +9,10 @@ class DatabaseHelper {
 
   Database? _db;
 
-  Future<Database> get database async {
+  bool get isWeb => kIsWeb;
+
+  Future<Database?> get database async {
+    if (isWeb) return null;
     if (_db != null) return _db!;
     _db = await _initDb();
     return _db!;
@@ -37,8 +41,6 @@ class DatabaseHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Todos llevan sync_status: 0 = sincronizado con Supabase, 1 = pendiente de subir
-    
     await db.execute('''
       CREATE TABLE negocios(
         id TEXT PRIMARY KEY,
@@ -138,9 +140,10 @@ class DatabaseHelper {
     ''');
   }
 
-  // Utilidad para limpiar toda la base local (usada al cerrar sesión o resincronizar masivamente)
   Future<void> clearAllTables() async {
+    if (isWeb) return;
     final db = await database;
+    if (db == null) return;
     await db.execute('DELETE FROM detalles_venta');
     await db.execute('DELETE FROM ventas');
     await db.execute('DELETE FROM prestamos');

@@ -62,7 +62,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
         return;
       }
 
-      if (!(await printer.isConnected)!) {
+      if (!(await printer.isConnected ?? false)) {
         final devices = await printer.getBondedDevices();
         final device = devices.firstWhere(
           (d) => d.address == address,

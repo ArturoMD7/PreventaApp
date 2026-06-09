@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,8 @@ import 'dart:async';
 
 import 'package:refrescos_app/services/sync_service.dart';
 import 'package:refrescos_app/services/database_helper.dart';
+import 'package:refrescos_app/services/auth_service.dart';
+import 'package:refrescos_app/services/notification_service.dart';
 import 'package:refrescos_app/screens/login_screen.dart';
 import 'package:refrescos_app/screens/venta_screen.dart';
 import 'package:refrescos_app/screens/productos_screen.dart';
@@ -23,16 +26,28 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Cargar variables de entorno
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    print('Advertencia: No se pudo cargar el archivo .env');
+  }
 
   // Inicializar Supabase
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'];
+  if (supabaseUrl == null || supabaseUrl.isEmpty || supabaseKey == null || supabaseKey.isEmpty) {
+    print('ERROR: SUPABASE_URL y SUPABASE_ANON_KEY deben estar configurados en el archivo .env');
+    return;
+  }
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    url: supabaseUrl,
+    anonKey: supabaseKey,
   );
 
-  // Inicializar Base de Datos Local
-  await DatabaseHelper().database;
+  // Inicializar Base de Datos Local (sqflite solo en nativo)
+  if (!kIsWeb) {
+    await DatabaseHelper().database;
+  }
 
   runApp(MyApp());
 }
@@ -100,7 +115,7 @@ class _MyAppState extends State<MyApp> {
           backgroundColor: Color(0xFF1E3A8A),
           foregroundColor: Colors.white,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 4,
           shadowColor: Colors.black.withOpacity(0.1),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -224,6 +239,8 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     // Iniciar sincronización al cargar la app principal
     SyncService().syncAll();
+    // Iniciar notificaciones vía Supabase Realtime
+    NotificationService().init();
   }
 
   void _onItemTapped(int index) {
@@ -241,7 +258,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _signOut() async {
-    await Supabase.instance.client.auth.signOut();
+    await AuthService().signOut();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => LoginScreen()),
       (Route<dynamic> route) => false,
