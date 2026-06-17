@@ -31,7 +31,7 @@ class VentaItem extends StatelessWidget {
                 venta.estado == 'pendiente' ? Colors.orange :
                 Colors.grey,
         ),
-        title: Text(venta.clienteNombre ?? 'Cliente no especificado'),
+        title: Text(venta.clienteNombre.isNotEmpty ? venta.clienteNombre : 'Cliente no especificado'),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

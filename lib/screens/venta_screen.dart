@@ -5,7 +5,6 @@ import 'package:refrescos_app/services/sync_service.dart';
 import 'package:refrescos_app/models/detalle_venta.dart';
 import 'package:refrescos_app/models/producto.dart';
 import 'package:refrescos_app/models/venta.dart';
-import 'package:refrescos_app/models/negocio.dart';
 import 'package:refrescos_app/widgets/cliente_dropdown.dart';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -258,7 +257,7 @@ class _VentaScreenState extends State<VentaScreen> {
         return;
       }
 
-      if (!(await printer.isConnected)!) {
+      if (!(await printer.isConnected ?? false)) {
         final devices = await printer.getBondedDevices();
         final device = devices.firstWhere(
           (d) => d.address == address,
